@@ -2,7 +2,7 @@ import {
   type M,
   createApi,
   createGardenApi,
-  refreshToken,
+  getJwtToken,
   run as runCore,
 } from '@asign/caiyun-core'
 import { type LoggerPushData, createLogger, sleep } from '@asunajs/utils'
@@ -30,14 +30,19 @@ function getAuthInfo(basicToken: string) {
 }
 
 export async function main(config: any, option?: Option) {
+  const logger = await createLogger({ pushData: option?.pushData })
   const { phone, authToken, basicToken } = getAuthInfo(config.token)
+
+  if (phone.length !== 11 || !phone.startsWith('1')) {
+    logger.info(`token 格式解析错误，请查看是否填写正确的 token`)
+    return
+  }
 
   config.phone = phone
   config.auth = authToken
   config.token = `Basic ${basicToken}`
 
   const cookieJar = new CookieJar()
-  const logger = await createLogger({ pushData: option?.pushData })
   const baseUA =
     'Mozilla/5.0 (Linux; Android 13; 22041216C Build/TP1A.220624.014; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/121.0.6167.178 Mobile Safari/537.36'
 
@@ -88,8 +93,9 @@ export async function main(config: any, option?: Option) {
 
   logger.info(`==============`)
   logger.info(`登录账号【${config.phone}】`)
-  jwtToken = await refreshToken($, config.phone)
+  jwtToken = await getJwtToken($)
   if (!jwtToken) return
+
   await runCore($)
   logger.info(`==============\n\n`)
 }
@@ -108,19 +114,24 @@ export async function run(path: string) {
     throw new Error('配置文件为空')
   }
 
+  const logger = await createLogger()
+
   const caiyun = config.caiyun
 
   if (!caiyun || !caiyun.length || !caiyun[0].token)
-    return console.error('未找到配置文件/变量')
+    return logger.error('未找到配置文件/变量')
 
   const pushData: LoggerPushData[] = []
 
   for (const c of caiyun) {
-    if (!c.token) continue
+    if (!c.token) {
+      logger.error('该配置中不存在 token ')
+      continue
+    }
     try {
       await main(c, { pushData })
     } catch (error) {
-      console.error(error)
+      logger.error(error)
     }
   }
 

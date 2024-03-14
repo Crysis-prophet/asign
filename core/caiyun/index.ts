@@ -1,4 +1,4 @@
-import { randomHex, setStoreArray } from '@asign/utils-pure'
+import { getXmlElement, randomHex, setStoreArray } from '@asign/utils-pure'
 import { gardenTask } from './garden.js'
 import type { M } from './types.js'
 
@@ -50,13 +50,24 @@ async function signInWxApi($: M) {
   return await request($, $.api.signInfoInWx, '微信签到')
 }
 
-export async function refreshToken($: M, phone: string) {
-  const ssoToken = await getSsoTokenApi($, phone)
+export async function getJwtToken($: M) {
+  const ssoToken = await getSsoTokenApi($, $.config.phone)
   if (!ssoToken) return
 
-  const jwtToken = await getJwtTokenApi($, ssoToken)
+  return await getJwtTokenApi($, ssoToken)
+}
 
-  return jwtToken
+export async function refreshToken($: M) {
+  try {
+    const { token, phone } = $.config
+    const tokenXml = await $.api.authTokenRefresh(token, phone)
+    if (!tokenXml) {
+      return $.logger.error(`authTokenRefresh 失败`)
+    }
+    return getXmlElement(tokenXml, 'token')
+  } catch (error) {
+    $.logger.error(`刷新 token 失败`, error)
+  }
 }
 
 async function signIn($: M) {
