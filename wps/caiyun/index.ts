@@ -2,7 +2,8 @@ import {
   M,
   createApi,
   createGardenApi,
-  refreshToken,
+  getJwtToken,
+  createNewAuth,
   run,
 } from '@asign/caiyun-core'
 import type { Untyped } from '@asign/caiyun-core'
@@ -19,7 +20,7 @@ type Config = Partial<Untyped> & {
   phone: string
 }
 
-export async function main(index, config: Config, option?) {
+export async function main(index, config: any, option?) {
   const basicToken = config.token.startsWith('Basic')
     ? config.token
     : `Basic ${config.token}`
@@ -75,36 +76,48 @@ export async function main(index, config: Config, option?) {
     store: {},
   }
 
-  jwtToken = await refreshToken($, config.phone)
+  jwtToken = await getJwtToken($)
   if (!jwtToken) return
 
-  return await run($)
+  await run($)
+
+  return await createNewAuth($)
 }
 
 const columnA = ActiveSheet.Columns('A')
 // 获取当前工作表的使用范围
 const usedRange = ActiveSheet.UsedRange
 const len = usedRange.Row + usedRange.Rows.Count - 1,
-  BColumn = ActiveSheet.Columns('B'),
-  CColumn = ActiveSheet.Columns('C')
+  BColumn = ActiveSheet.Columns('B')
 const pushData = []
 
 for (let i = 1; i <= len; i++) {
   const cell = columnA.Rows(i)
   if (cell.Text) {
     console.log(`执行第 ${i} 行`)
-    main(
+    runMain(i, cell)
+    console.log(`第 ${i} 行执行结束`)
+  }
+}
+
+sendWpsNotify(pushData, getPushConfig())
+
+function runMain(i: number, cell: { Text: string }) {
+  try {
+    const newAuth = main(
       i,
       {
-        token: BColumn.Rows(i).Text,
-        phone: cell.Text,
-        auth: CColumn.Rows(i).Text,
+        auth: cell.Text.length === 11 ? BColumn.Rows(i).Text : cell.Text,
       },
       {
         pushData,
       },
     )
+    if (newAuth) {
+      console.log(`更新 auth 成功`)
+      BColumn.Rows(i).Value = newAuth
+    }
+  } catch (error) {
+    console.log(error.message)
   }
 }
-
-sendWpsNotify(pushData, getPushConfig())
